@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",
+    "@react-pdf/renderer": "^4.5.1",
     "@remix-run/dev": "^2.16.1",
     "@remix-run/fs-routes": "^2.16.1",
     "@remix-run/node": "^2.16.1",
@@ -43,6 +44,8 @@
     "@remix-run/eslint-config": "^2.16.1",
     "@remix-run/route-config": "^2.16.1",
     "@shopify/api-codegen-preset": "^1.1.1",
+    "@shopify/cli": "^4.0.0",
+    "@shopify/plugin-cloudflare": "^4.0.0",
     "@types/eslint": "^9.6.1",
     "@types/node": "^22.2.0",
     "@types/react": "^18.2.31",

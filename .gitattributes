@@ -1,0 +1,16 @@
+# テキストは LF 統一（cross-platform 開発を想定）
+* text=auto eol=lf
+
+# バイナリ（改行変換禁止）
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.sqlite binary
+*.sqlite-journal binary

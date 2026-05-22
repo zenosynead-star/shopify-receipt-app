@@ -1,3 +1,15 @@
+node_modules
+.git
+.env
+.env.*
+*.sqlite
+*.sqlite-journal
+prisma/dev.sqlite
 .cache
 build
-node_modules
+public/build
+dist
+.DS_Store
+*.log
+extensions/*/node_modules
+extensions/*/dist

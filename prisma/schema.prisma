@@ -9,8 +9,9 @@ generator client {
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "postgresql"
+  // Neon (Postgres) の接続文字列。ローカル開発でも同じ DB を共有する想定。
+  url      = env("DATABASE_URL")
 }
 
 model Session {
@@ -31,4 +32,22 @@ model Session {
   emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+// 発行者（売る側）の領収書情報。ショップごとに1レコード。
+model ShopSettings {
+  shop              String   @id
+  companyName       String   @default("")
+  invoiceNumber     String   @default("") // 適格請求書発行事業者登録番号 (T+13桁)
+  postalCode        String   @default("")
+  address           String   @default("")
+  phone             String   @default("")
+  email             String   @default("")
+  stampImageBase64  String?  // 電子印影 (PNG/JPEG を base64 で保存)
+  receiptPrefix     String   @default("R-") // 領収書番号の接頭辞
+  taxRateDefault    Int      @default(10)   // 標準税率 (%)
+  reducedTaxRate    Int      @default(8)    // 軽減税率 (%)
+  notes             String   @default("")   // 但し書きデフォルト ("商品代として" 等)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }

@@ -14,7 +14,7 @@ database.sqlite
 .env
 .env.*
 
-package-lock.json
+# package-lock.json is committed for reproducible builds on Render
 yarn.lock
 pnpm-lock.yaml
 
