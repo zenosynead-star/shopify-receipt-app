@@ -67,7 +67,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     shop,
     storeHandle,
-    notificationsUrl: `https://admin.shopify.com/store/${storeHandle}/settings/notifications`,
+    // 注文確認メールの「コード編集」画面に直接ジャンプ (Shopify Admin の email_templates パス)
+    notificationsUrl: `https://admin.shopify.com/store/${storeHandle}/email_templates/order_confirmation/edit`,
     appUrl: process.env.SHOPIFY_APP_URL || "",
     shopSecret: shopReceiptSecret(shop),
     settings: {
@@ -396,10 +397,9 @@ export default function Index() {
                   <Text as="p" variant="bodyMd">手順:</Text>
                   <List type="number">
                     <List.Item>下のスニペットを <b>「コピー」</b> ボタンで取得</List.Item>
-                    <List.Item><b>「Shopify 通知設定を開く」</b> ボタンで新しいタブを開く</List.Item>
-                    <List.Item>「<b>注文確認</b>」→ <b>「コードを編集」</b> をクリック</List.Item>
-                    <List.Item>HTML 本文の <code>{`</body>`}</code> 直前にペースト → <b>保存</b></List.Item>
-                    <List.Item>このページに戻り、下の <b>「貼り付け完了」</b> にチェック → <b>保存</b></List.Item>
+                    <List.Item><b>「コード編集画面を開く」</b> ボタンで新しいタブを開く（注文確認メールの HTML エディタに直接飛びます）</List.Item>
+                    <List.Item>HTML 本文の <code>{`</body>`}</code> 直前にペースト → <b>「保存」</b> ボタン（右上）</List.Item>
+                    <List.Item>このページに戻り、下の <b>「貼り付け完了」</b> にチェック → <b>「保存」</b></List.Item>
                   </List>
 
                   <TextField
@@ -426,7 +426,7 @@ export default function Index() {
                       target="_blank"
                       variant="primary"
                     >
-                      Shopify 通知設定を開く
+                      コード編集画面を開く
                     </Button>
                   </InlineStack>
 
