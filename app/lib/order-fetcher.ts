@@ -23,6 +23,7 @@ const ORDER_FIELDS = `#graphql
   id
   name
   processedAt
+  note
   customer { displayName }
   customAttributes { key value }
   currentSubtotalPriceSet { shopMoney { amount } }
@@ -76,17 +77,27 @@ function normalizeOrder(order: any): ReceiptOrder {
 
   const numericId = order.id.replace("gid://shopify/Order/", "");
 
-  // チェックアウト UI Extension で入力された領収書宛名があれば優先
+  // 領収書宛名の取得 (優先順位):
+  // 1. Checkout UI Extension の attribute (Plus 限定なので将来用)
+  // 2. 注文メモ (order.note) の最初の行 50 文字まで - Shopify 標準機能
+  // 3. 顧客名 (フォールバック)
   const receiptRecipient = (order.customAttributes ?? [])
     .find((a: any) => a.key === "receipt_recipient")
     ?.value?.trim();
+  const noteName = order.note
+    ?.split("\n")[0]
+    ?.trim()
+    ?.slice(0, 50);
 
   return {
     orderName: order.name,
     orderId: numericId,
     processedAt: order.processedAt,
     customerName:
-      receiptRecipient || order.customer?.displayName || "ご注文者様",
+      receiptRecipient ||
+      noteName ||
+      order.customer?.displayName ||
+      "ご注文者様",
     subtotalJpy: toJpyInt(order.currentSubtotalPriceSet.shopMoney.amount),
     taxByRate,
     totalJpy: toJpyInt(order.currentTotalPriceSet.shopMoney.amount),
