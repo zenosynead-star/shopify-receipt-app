@@ -19,6 +19,28 @@ export type ReceiptOrder = {
   lineItems: ReceiptLineItem[];
 };
 
+const ORDER_FIELDS = `#graphql
+  id
+  name
+  processedAt
+  customer { displayName }
+  currentSubtotalPriceSet { shopMoney { amount } }
+  currentTotalPriceSet { shopMoney { amount } }
+  currentTotalTaxSet { shopMoney { amount } }
+  currentTaxLines { rate priceSet { shopMoney { amount } } }
+  lineItems(first: 100) {
+    edges {
+      node {
+        title
+        quantity
+        originalUnitPriceSet { shopMoney { amount } }
+        discountedTotalSet { shopMoney { amount } }
+        taxLines { rate }
+      }
+    }
+  }
+`;
+
 // GraphQL レスポンスから日本円整数値に変換 (Shopify は文字列の小数)
 function toJpyInt(amount: string | number | null | undefined): number {
   if (amount == null) return 0;
@@ -26,47 +48,7 @@ function toJpyInt(amount: string | number | null | undefined): number {
   return Math.round(n);
 }
 
-export async function fetchReceiptOrder(
-  shop: string,
-  orderIdNumeric: string,
-): Promise<ReceiptOrder | null> {
-  const { admin } = await unauthenticated.admin(shop);
-  const gid = `gid://shopify/Order/${orderIdNumeric}`;
-
-  const response = await admin.graphql(
-    `#graphql
-      query ReceiptOrder($id: ID!) {
-        order(id: $id) {
-          id
-          name
-          processedAt
-          customer { displayName }
-          currentSubtotalPriceSet { shopMoney { amount } }
-          currentTotalPriceSet { shopMoney { amount } }
-          currentTotalTaxSet { shopMoney { amount } }
-          currentTaxLines { rate priceSet { shopMoney { amount } } }
-          lineItems(first: 100) {
-            edges {
-              node {
-                title
-                quantity
-                originalUnitPriceSet { shopMoney { amount } }
-                discountedTotalSet { shopMoney { amount } }
-                taxLines { rate }
-              }
-            }
-          }
-        }
-      }`,
-    { variables: { id: gid } },
-  );
-
-  const json = (await response.json()) as {
-    data?: { order: any | null };
-  };
-  const order = json.data?.order;
-  if (!order) return null;
-
+function normalizeOrder(order: any): ReceiptOrder {
   const lineItems: ReceiptLineItem[] = order.lineItems.edges.map(
     (edge: any) => {
       const node = edge.node;
@@ -85,16 +67,17 @@ export async function fetchReceiptOrder(
   for (const tl of order.currentTaxLines ?? []) {
     const rate = Math.round(tl.rate * 100);
     const tax = toJpyInt(tl.priceSet.shopMoney.amount);
-    // この税率の課税対象金額 (net) は line items から逆算
     const net = lineItems
       .filter((li) => li.taxRate === rate)
       .reduce((s, li) => s + li.totalJpy, 0);
     taxByRate[rate] = { net, tax };
   }
 
+  const numericId = order.id.replace("gid://shopify/Order/", "");
+
   return {
     orderName: order.name,
-    orderId: orderIdNumeric,
+    orderId: numericId,
     processedAt: order.processedAt,
     customerName: order.customer?.displayName ?? "ご注文者様",
     subtotalJpy: toJpyInt(order.currentSubtotalPriceSet.shopMoney.amount),
@@ -102,4 +85,90 @@ export async function fetchReceiptOrder(
     totalJpy: toJpyInt(order.currentTotalPriceSet.shopMoney.amount),
     lineItems,
   };
+}
+
+/**
+ * 注文を取得する。orderIdOrName が:
+ *  - 数字のみ → Order ID (gid) として直接取得
+ *  - その他 (#1001 等) → 注文名として orders(query:) で検索
+ *
+ * 注意: `read_orders` スコープでは過去 60 日の注文のみ取得可能。
+ * それ以前の注文は `read_all_orders` (要承認) が必要。
+ */
+export async function fetchReceiptOrder(
+  shop: string,
+  orderIdOrName: string,
+): Promise<ReceiptOrder | null> {
+  const { admin } = await unauthenticated.admin(shop);
+  const isNumericId = /^\d+$/.test(orderIdOrName);
+
+  try {
+    if (isNumericId) {
+      // ID 直接取得
+      const gid = `gid://shopify/Order/${orderIdOrName}`;
+      const response = await admin.graphql(
+        `#graphql
+          query ReceiptOrderById($id: ID!) {
+            order(id: $id) {
+              ${ORDER_FIELDS}
+            }
+          }`,
+        { variables: { id: gid } },
+      );
+      const json = (await response.json()) as {
+        data?: { order: any | null };
+        errors?: any[];
+      };
+      if (json.errors) {
+        console.error(
+          "[order-fetcher] GraphQL errors by ID:",
+          JSON.stringify(json.errors),
+        );
+        return null;
+      }
+      if (!json.data?.order) {
+        console.error(
+          `[order-fetcher] Order not found by ID: shop=${shop} id=${orderIdOrName}. 60日より古い注文の可能性があります (要 read_all_orders スコープ)。`,
+        );
+        return null;
+      }
+      return normalizeOrder(json.data.order);
+    } else {
+      // 注文名で検索: "#" が無ければ補う
+      const name = orderIdOrName.startsWith("#")
+        ? orderIdOrName
+        : `#${orderIdOrName}`;
+      const response = await admin.graphql(
+        `#graphql
+          query ReceiptOrderByName($query: String!) {
+            orders(first: 1, query: $query) {
+              edges { node { ${ORDER_FIELDS} } }
+            }
+          }`,
+        { variables: { query: `name:${name}` } },
+      );
+      const json = (await response.json()) as {
+        data?: { orders: { edges: { node: any }[] } };
+        errors?: any[];
+      };
+      if (json.errors) {
+        console.error(
+          "[order-fetcher] GraphQL errors by name:",
+          JSON.stringify(json.errors),
+        );
+        return null;
+      }
+      const edge = json.data?.orders.edges[0];
+      if (!edge) {
+        console.error(
+          `[order-fetcher] Order not found by name: shop=${shop} name=${name}. 60日より古い注文か注文名が間違っている可能性。`,
+        );
+        return null;
+      }
+      return normalizeOrder(edge.node);
+    }
+  } catch (e) {
+    console.error("[order-fetcher] Exception:", e);
+    return null;
+  }
 }

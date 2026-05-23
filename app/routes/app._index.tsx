@@ -431,17 +431,19 @@ function PreviewLink(props: {
   secret: string;
 }) {
   const [orderId, setOrderId] = useState("");
-  const url = orderId
-    ? `${props.appUrl}/r/${props.shop}/${orderId}?k=${props.secret}`
+  const trimmed = orderId.trim();
+  const url = trimmed
+    ? `${props.appUrl}/r/${props.shop}/${encodeURIComponent(trimmed)}?k=${props.secret}`
     : "";
   return (
     <BlockStack gap="200">
       <TextField
-        label="注文 ID（数字のみ。GraphQL gid ではない）"
+        label="注文 ID または注文名"
         value={orderId}
         onChange={setOrderId}
         autoComplete="off"
-        placeholder="5678901234567"
+        placeholder="5460681064696 または #7643"
+        helpText="数字のみ = 注文ID、# 付きや英字含み = 注文名として検索。過去 60 日以内の注文のみ取得可能 (Shopify 仕様)"
       />
       {url ? (
         <Link url={url} target="_blank">
