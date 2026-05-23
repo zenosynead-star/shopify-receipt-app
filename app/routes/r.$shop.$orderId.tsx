@@ -41,22 +41,44 @@ function confirmPage(args: {
   issuedAt: Date;
 }): string {
   const yen = `¥${args.totalJpy.toLocaleString("ja-JP")}`;
+  const alreadyIssued = args.reissueCount >= 1;
   const issuedAtStr = args.issuedAt.toLocaleString("ja-JP", {
     year: "numeric",
     month: "long",
     day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
-  const isReissue = args.reissueCount >= 1;
-  const buttonLabel = isReissue
-    ? `再ダウンロード（再発行 R${args.reissueCount + 1}）`
-    : "PDF をダウンロード";
-  const reissueWarning = isReissue
-    ? `<div style="background:#fff4e5;border-left:4px solid #ff9800;padding:12px 14px;margin:16px 0;border-radius:4px;font-size:13px;color:#7a4a00;line-height:1.6;">
-    <b>⚠️ 再発行になります</b><br>
-    この注文は <b>${issuedAtStr}</b> に初回発行済みです (これまで ${args.reissueCount} 回ダウンロード)。<br>
-    再発行する PDF には「<b>再発行 R${args.reissueCount + 1}</b>」と明記されます。経費精算の二重計上にご注意ください。
+
+  const recipientHasInput = args.recipient && args.recipient !== "ご注文者様";
+
+  // 初回 (未発行): 宛名入力可能 + 発行ボタン
+  // 既発行: 宛名 readonly + 発行済みメッセージ + ボタン無効化
+  const recipientInput = alreadyIssued
+    ? `<input id="name" type="text" value="${escapeHtml(args.recipient)} 様" readonly />`
+    : `<input id="name" type="text" name="name" value="${escapeHtml(args.recipient)}" placeholder="ご注文者名" autocomplete="organization" />`;
+
+  const hintText = alreadyIssued
+    ? "宛名は初回発行時に確定されています。変更はできません。"
+    : "会社名・個人名どちらでも OK。空欄なら「ご注文者様」となります。";
+
+  const button = alreadyIssued
+    ? `<button type="button" disabled style="background:#bcbcbc;cursor:not-allowed;">ダウンロード済み</button>`
+    : `<button type="submit">📄 PDF をダウンロード（1 回限り）</button>`;
+
+  const alreadyBlock = alreadyIssued
+    ? `<div style="background:#fdecea;border-left:4px solid #c41e3a;padding:14px 16px;margin:20px 0;border-radius:4px;font-size:14px;color:#7a1a1a;line-height:1.7;">
+    <b>⚠️ 既にダウンロード済みです</b><br>
+    この注文の領収書は <b>${issuedAtStr}</b> に発行済みです。<br>
+    領収書は 1 注文につき 1 回のみダウンロード可能です（不正発行防止のため）。<br>
+    再発行が必要な場合は、お手数ですが <b>ストア管理者にお問い合わせください</b>。
   </div>`
-    : "";
+    : `<div style="background:#fff4e5;border-left:4px solid #ff9800;padding:12px 14px;margin:16px 0;border-radius:4px;font-size:13px;color:#7a4a00;line-height:1.6;">
+    <b>⚠️ ご注意</b><br>
+    領収書は <b>1 注文につき 1 回のみダウンロード可能</b>です。ダウンロード後は変更・再発行できません。<br>
+    宛名・金額をご確認の上、ボタンを押してください。
+  </div>`;
+
   return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>領収書ダウンロード</title>
 <style>
 *{box-sizing:border-box;}
@@ -68,10 +90,11 @@ h1{font-size:22px;margin:0 0 8px;}
 .summary .row{display:flex;justify-content:space-between;padding:3px 0;}
 .summary .label{color:#6d7175;}
 label{display:block;margin:24px 0 6px;font-size:13px;font-weight:600;}
-input[type=text]{width:100%;padding:12px 14px;border:1px solid #c9cccf;border-radius:6px;font-size:16px;font-family:inherit;background:#f6f6f7;color:#444;}
+input[type=text]{width:100%;padding:12px 14px;border:1px solid #c9cccf;border-radius:6px;font-size:16px;font-family:inherit;}
+input[type=text][readonly]{background:#f6f6f7;color:#444;}
 .hint{font-size:12px;color:#6d7175;margin:6px 0 0;}
 button{width:100%;background:#202223;color:white;border:none;padding:14px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;font-family:inherit;}
-button:hover{background:#000;}
+button:hover:not(:disabled){background:#000;}
 </style></head>
 <body>
 <div class="box">
@@ -84,14 +107,14 @@ button:hover{background:#000;}
     <div class="row"><span class="label">合計金額</span><span><b>${yen}</b></span></div>
   </div>
 
-  ${reissueWarning}
+  ${alreadyBlock}
 
   <form method="GET" action="">
     <input type="hidden" name="download" value="1" />
-    <label for="name">領収書の宛名 <span style="color:#6d7175;font-weight:normal;">（注文時に確定済み）</span></label>
-    <input id="name" type="text" value="${escapeHtml(args.recipient)} 様" readonly />
-    <p class="hint">宛名は注文時に確定したものに固定されています（不正発行防止のため変更不可）。</p>
-    <button type="submit">${buttonLabel}</button>
+    <label for="name">領収書の宛名${recipientHasInput || alreadyIssued ? "" : "（任意）"}</label>
+    ${recipientInput}
+    <p class="hint">${hintText}</p>
+    ${button}
   </form>
 </div>
 <script>
@@ -150,33 +173,26 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     );
   }
 
-  // 発行履歴を取得 or 作成 (1 注文 1 宛名で固定)
-  let issue = await prisma.receiptIssue.findUnique({
+  // 発行履歴を取得 (まだ作らない、初回 DL 時に作る)
+  const existingIssue = await prisma.receiptIssue.findUnique({
     where: { shop_orderId: { shop, orderId } },
   });
-  if (!issue) {
-    // 注文時にカートで入力された宛名 (customAttributes.receipt_recipient) を最優先
-    // → 注文メモ → 顧客名 (これは order-fetcher.ts で既に customerName に解決済み)
-    issue = await prisma.receiptIssue.create({
-      data: {
-        shop,
-        orderId,
-        recipient: order.customerName,
-        reissueCount: 0,
-      },
-    });
-  }
 
   // モード①: 確認ページ (デフォルト)
   if (!isDownload) {
+    // 既発行: DB の recipient を表示
+    // 未発行: 注文時のデフォルト宛名 (customAttributes / note / 顧客名)
+    const displayRecipient = existingIssue
+      ? existingIssue.recipient
+      : order.customerName;
     return new Response(
       confirmPage({
         orderName: order.orderName,
-        recipient: issue.recipient,
+        recipient: displayRecipient,
         companyName: settings.companyName || "領収書",
         totalJpy: order.totalJpy,
-        reissueCount: issue.reissueCount,
-        issuedAt: issue.issuedAt,
+        reissueCount: existingIssue?.reissueCount ?? 0,
+        issuedAt: existingIssue?.issuedAt ?? new Date(),
       }),
       {
         status: 200,
@@ -188,14 +204,35 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     );
   }
 
-  // モード②: PDF ダウンロード — reissueCount を +1
-  const newCount = issue.reissueCount + 1;
-  await prisma.receiptIssue.update({
-    where: { id: issue.id },
-    data: { reissueCount: newCount },
+  // モード②: PDF ダウンロード
+  // 既発行なら拒否 (1 注文 1 回のみ)
+  if (existingIssue) {
+    return new Response(
+      errorPage(
+        "既にダウンロード済みです",
+        `この注文の領収書は <b>${existingIssue.issuedAt.toLocaleString("ja-JP")}</b> に発行済みです。<br><br>領収書は 1 注文につき 1 回のみダウンロード可能です。<br>再発行が必要な場合は、ストア管理者にお問い合わせください。`,
+      ),
+      {
+        status: 403,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      },
+    );
+  }
+
+  // 初回 DL: 宛名を確定 (フォーム入力 → 注文時宛名 の順)
+  const customNameFromForm = url.searchParams.get("name")?.trim() || "";
+  const finalRecipient = customNameFromForm || order.customerName;
+
+  await prisma.receiptIssue.create({
+    data: {
+      shop,
+      orderId,
+      recipient: finalRecipient,
+      reissueCount: 1, // 1 = 初回発行済み
+    },
   });
 
-  const finalOrder = { ...order, customerName: issue.recipient };
+  const finalOrder = { ...order, customerName: finalRecipient };
   const buffer = await renderToBuffer(
     <ReceiptDocument
       order={finalOrder}
@@ -210,7 +247,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
         receiptPrefix: settings.receiptPrefix,
         notes: settings.notes,
       }}
-      reissueCount={newCount}
+      reissueCount={1}
     />,
   );
 
@@ -218,7 +255,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="receipt-${finalOrder.orderName.replace("#", "")}${newCount >= 2 ? `-R${newCount}` : ""}.pdf"`,
+      "Content-Disposition": `inline; filename="receipt-${finalOrder.orderName.replace("#", "")}.pdf"`,
       "Cache-Control": "private, max-age=0, no-store",
     },
   });
