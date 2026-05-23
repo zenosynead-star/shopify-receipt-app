@@ -394,41 +394,48 @@ export default function Index() {
                     </Banner>
                   ) : null}
 
-                  <Text as="p" variant="bodyMd">手順:</Text>
+                  <Banner tone="info">
+                    <p>
+                      ⚠️ Shopify の仕様上、貼り付けは完全自動化できません。<b>下のボタン</b>でコピー＋編集画面が同時に開きます。あとは新タブで <b>Ctrl+End → Enter → Ctrl+V → 保存</b> の 4 キー操作のみ。
+                    </p>
+                  </Banner>
+
+                  <Button
+                    variant="primary"
+                    size="large"
+                    onClick={() => {
+                      navigator.clipboard.writeText(snippet);
+                      appBridge.toast.show("コピー完了！編集画面を開きます");
+                      window.open(data.notificationsUrl, "_blank");
+                    }}
+                  >
+                    📋 コピー + 編集画面を開く（1 クリック）
+                  </Button>
+
+                  <Text as="p" variant="bodyMd">編集画面でのキー操作:</Text>
                   <List type="number">
-                    <List.Item>下のスニペットを <b>「コピー」</b> ボタンで取得</List.Item>
-                    <List.Item><b>「コード編集画面を開く」</b> ボタンで新しいタブを開く（注文確認メールの HTML エディタに直接飛びます）</List.Item>
-                    <List.Item>HTML 本文の <code>{`</body>`}</code> 直前にペースト → <b>「保存」</b> ボタン（右上）</List.Item>
-                    <List.Item>このページに戻り、下の <b>「貼り付け完了」</b> にチェック → <b>「保存」</b></List.Item>
+                    <List.Item><code>Ctrl + End</code>（Mac は <code>⌘ + ↓</code>）— エディタ最下部にカーソル移動</List.Item>
+                    <List.Item><code>Enter</code> — 改行</List.Item>
+                    <List.Item><code>Ctrl + V</code>（Mac は <code>⌘ + V</code>）— 貼り付け</List.Item>
+                    <List.Item>右上の <b>「保存」</b> ボタンをクリック</List.Item>
+                    <List.Item>このページに戻って <b>「貼り付け完了」</b> にチェック → <b>「保存」</b></List.Item>
                   </List>
 
+                  <Divider />
+
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    手動でコピーしたい場合は下のテキスト欄から:
+                  </Text>
                   <TextField
-                    label="Liquid スニペット"
+                    label="Liquid スニペット（手動コピー用）"
                     value={snippet}
-                    multiline={6}
+                    multiline={5}
                     autoComplete="off"
                     onChange={() => {}}
                     readOnly
                     monospaced
                     selectTextOnFocus
                   />
-                  <InlineStack gap="200">
-                    <Button
-                      onClick={() => {
-                        navigator.clipboard.writeText(snippet);
-                        appBridge.toast.show("スニペットをコピーしました");
-                      }}
-                    >
-                      コピー
-                    </Button>
-                    <Button
-                      url={data.notificationsUrl}
-                      target="_blank"
-                      variant="primary"
-                    >
-                      コード編集画面を開く
-                    </Button>
-                  </InlineStack>
 
                   <Divider />
 
