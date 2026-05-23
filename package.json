@@ -23,6 +23,7 @@
     "node": ">=20.19 <22 || >=22.12"
   },
   "dependencies": {
+    "@fontsource/noto-sans-jp": "^5.2.9",
     "@prisma/client": "^6.2.1",
     "@react-pdf/renderer": "^4.5.1",
     "@remix-run/dev": "^2.16.1",
