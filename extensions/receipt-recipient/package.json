@@ -4,6 +4,6 @@
   "dependencies": {
     "@shopify/ui-extensions": "2025.1.x",
     "@shopify/ui-extensions-react": "2025.1.x",
-    "react": "^18.0.0"
+    "react": "^19.2.5"
   }
 }
