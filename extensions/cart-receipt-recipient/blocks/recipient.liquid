@@ -25,52 +25,61 @@
 }
 {% endschema %}
 
-{%- comment -%}
-  App Embed Block: テーマ全体に挿入される。
-  JS でカートページのみに <input> を動的挿入する（form 内に配置することで cart attribute として送信される）。
-{%- endcomment -%}
-
-{% if template contains 'cart' %}
 <script>
 (function() {
-  var existingValue = {{ cart.attributes.receipt_recipient | json }};
-  function inject() {
-    var form = document.querySelector('form[action*="/cart"]') || document.querySelector('#cart');
-    if (!form) return false;
-    if (form.querySelector('#cart-receipt-recipient')) return true; // 既に挿入済み
+  var INITIAL_VALUE = {{ cart.attributes.receipt_recipient | json }};
+  var LABEL = {{ block.settings.label | json }};
+  var PLACEHOLDER = {{ block.settings.placeholder | json }};
+  var HINT = {{ block.settings.hint | json }};
+  var INPUT_ID = 'cart-receipt-recipient';
 
+  function buildWrap() {
     var wrap = document.createElement('div');
     wrap.style.cssText = 'margin:16px 0;padding:14px 16px;background:#f6f6f7;border-radius:6px;';
 
     var label = document.createElement('label');
-    label.setAttribute('for', 'cart-receipt-recipient');
+    label.setAttribute('for', INPUT_ID);
     label.style.cssText = 'display:block;margin-bottom:6px;font-weight:600;font-size:14px;';
-    label.textContent = {{ block.settings.label | json }};
+    label.textContent = LABEL;
 
     var input = document.createElement('input');
     input.type = 'text';
-    input.id = 'cart-receipt-recipient';
+    input.id = INPUT_ID;
     input.name = 'attributes[receipt_recipient]';
-    input.value = existingValue || '';
-    input.placeholder = {{ block.settings.placeholder | json }};
+    input.value = INITIAL_VALUE || '';
+    input.placeholder = PLACEHOLDER;
     input.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #c9cccf;border-radius:4px;font-size:14px;box-sizing:border-box;font-family:inherit;';
+
+    // 入力値を即座に cart attributes に保存 (Ajax)
+    input.addEventListener('change', function() {
+      var fd = new FormData();
+      fd.append('attributes[receipt_recipient]', input.value);
+      fetch('/cart/update.js', { method: 'POST', body: fd }).catch(function() {});
+    });
 
     var hint = document.createElement('p');
     hint.style.cssText = 'font-size:12px;color:#6d7175;margin:6px 0 0;line-height:1.5;';
-    hint.textContent = {{ block.settings.hint | json }};
+    hint.textContent = HINT;
 
     wrap.appendChild(label);
     wrap.appendChild(input);
     wrap.appendChild(hint);
+    return wrap;
+  }
 
-    // チェックアウトボタンの直前に挿入
-    var checkoutBtn = form.querySelector('[name="checkout"], button[type="submit"]');
-    if (checkoutBtn && checkoutBtn.parentNode) {
-      checkoutBtn.parentNode.insertBefore(wrap, checkoutBtn);
-    } else {
-      form.appendChild(wrap);
-    }
-    return true;
+  function inject() {
+    if (!location.pathname.match(/\/cart/)) return;
+    if (document.getElementById(INPUT_ID)) return; // 重複挿入防止
+
+    // チェックアウトボタンを最優先で探す (どの Dawn でも存在)
+    var checkoutBtn = document.querySelector(
+      '[name="checkout"], button[name="checkout"], a[href*="/checkout"], .cart__checkout-button, #checkout, [data-checkout]',
+    );
+    if (!checkoutBtn) return;
+
+    var wrap = buildWrap();
+    var parent = checkoutBtn.parentNode;
+    parent.insertBefore(wrap, checkoutBtn);
   }
 
   if (document.readyState === 'loading') {
@@ -78,9 +87,13 @@
   } else {
     inject();
   }
-  // SPA 的に DOM が変わる場合に備え、500ms 後にも一度試行
-  setTimeout(inject, 500);
-  setTimeout(inject, 1500);
+  // Cart drawer や Ajax 更新でも追従
+  [200, 800, 2000, 4000].forEach(function(t) { setTimeout(inject, t); });
+
+  // DOM 変更を監視 (cart drawer の開閉、Ajax 更新)
+  if (typeof MutationObserver !== 'undefined') {
+    var observer = new MutationObserver(function() { inject(); });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
 })();
 </script>
-{% endif %}
