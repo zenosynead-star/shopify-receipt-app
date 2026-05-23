@@ -343,7 +343,7 @@ export default function Index() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    プレビュー（リアルタイム）
+                    領収書プレビュー（PDF）
                   </Text>
                   <Text as="p" variant="bodySm" tone="subdued">
                     サンプル注文 + 現在の設定で生成。保存すると最新内容に更新。
@@ -357,6 +357,27 @@ export default function Index() {
                       borderRadius: 4,
                     }}
                     title="領収書プレビュー"
+                  />
+                </BlockStack>
+              </Card>
+
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    送信メールプレビュー
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    注文確認メールがお客様にどう見えるか確認できます。中央のボタンが領収書 DL リンク。
+                  </Text>
+                  <iframe
+                    src={`${data.appUrl}/preview-email/${data.shop}?k=${data.shopSecret}&_t=${previewVersion}`}
+                    style={{
+                      width: "100%",
+                      height: 600,
+                      border: "1px solid #e1e3e5",
+                      borderRadius: 4,
+                    }}
+                    title="注文確認メール プレビュー"
                   />
                 </BlockStack>
               </Card>
