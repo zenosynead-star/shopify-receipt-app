@@ -1,7 +1,4 @@
-name = "cart-receipt-recipient"
-type = "theme"
-
-[[extensions]]
 name = "Receipt Recipient (Cart)"
-handle = "cart-receipt-recipient"
 type = "theme"
+handle = "cart-receipt-recipient"
+uid = "5a0f1805-f61a-e935-48e9-3422d69a666a2aa2133a"
