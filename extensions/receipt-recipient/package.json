@@ -2,8 +2,9 @@
   "name": "receipt-recipient",
   "private": true,
   "dependencies": {
-    "@shopify/ui-extensions": "2025.1.x",
-    "@shopify/ui-extensions-react": "2025.1.x",
-    "react": "^18.0.0"
+    "@shopify/ui-extensions": "2026.7.x",
+    "@shopify/ui-extensions-react": "2026.7.x",
+    "react": "^18.0.0",
+    "react-reconciler": "^0.29.0"
   }
 }

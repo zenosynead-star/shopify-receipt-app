@@ -1,14 +1,15 @@
-api_version = "2025-01"
+api_version = "2026-07"
 
 [[extensions]]
 name = "receipt-recipient"
 handle = "receipt-recipient"
+uid = "5d106a25-b178-b4f4-30d0-cb676b6b6d1608fa9c0c"
 type = "ui_extension"
 
   [[extensions.targeting]]
   module = "./src/Checkout.tsx"
-  # 配送先住所セクションの直下 (電話番号フィールドの下) に表示
-  target = "purchase.checkout.delivery-address.render-after"
+  # Plus 不要な動的ブロック。マーチャントがチェックアウトエディタで任意の位置に配置可能。
+  target = "purchase.checkout.block.render"
 
   [extensions.capabilities]
   network_access = false

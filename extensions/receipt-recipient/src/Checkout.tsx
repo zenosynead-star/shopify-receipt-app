@@ -7,10 +7,7 @@ import {
   useApplyAttributeChange,
 } from "@shopify/ui-extensions-react/checkout";
 
-export default reactExtension(
-  "purchase.checkout.delivery-address.render-after",
-  () => <App />,
-);
+export default reactExtension("purchase.checkout.block.render", () => <App />);
 
 const ATTR_KEY = "receipt_recipient";
 
