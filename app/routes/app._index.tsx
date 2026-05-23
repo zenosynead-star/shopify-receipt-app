@@ -349,7 +349,7 @@ export default function Index() {
                     サンプル注文 + 現在の設定で生成。保存すると最新内容に更新。
                   </Text>
                   <iframe
-                    src={`/app/preview-pdf?_t=${previewVersion}`}
+                    src={`${data.appUrl}/preview/${data.shop}?k=${data.shopSecret}&_t=${previewVersion}`}
                     style={{
                       width: "100%",
                       height: 500,

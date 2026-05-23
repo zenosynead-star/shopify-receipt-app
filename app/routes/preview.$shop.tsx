@@ -1,15 +1,21 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { ReceiptDocument } from "../lib/receipt-pdf";
+import { verifyShopReceiptToken } from "../lib/receipt-token";
 import type { ReceiptOrder } from "../lib/order-fetcher";
 
-// 設定画面の iframe 用: ハードコードのサンプル注文 + 現在の DB 設定で PDF 生成。
-// 認証必須 (Shopify Admin 内からのみ閲覧可)。
-export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = session.shop;
+// 設定画面の iframe 用: サンプル注文 + 現在の DB 設定で PDF 生成。
+// 認証なし公開ルート、shop 固有トークン (k) で検証。
+// URL: /preview/{shop}?k={token}
+export const loader = async ({ params, request }: LoaderFunctionArgs) => {
+  const shop = params.shop;
+  const token = new URL(request.url).searchParams.get("k") ?? "";
+
+  if (!shop) return new Response("Not found", { status: 404 });
+  if (!verifyShopReceiptToken(shop, token)) {
+    return new Response("Invalid token", { status: 403 });
+  }
 
   const existing = await prisma.shopSettings.findUnique({ where: { shop } });
 
@@ -26,7 +32,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     notes: existing?.notes || "商品代として",
   };
 
-  // サンプル注文: 複数税率 (10% / 8%) と複数行アイテムを含む
   const sampleOrder: ReceiptOrder = {
     orderName: "#9999",
     orderId: "9999",
