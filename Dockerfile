@@ -9,7 +9,9 @@ ENV NODE_ENV=production
 
 # 依存だけ先にコピーしてキャッシュ効かせる
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Shopify テンプレに React 19 を peer dep で要求するパッケージがあるため、
+# lock file 不整合を許容する --legacy-peer-deps を付けて install。
+RUN npm install --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # 本番不要な Shopify CLI を削除（イメージ縮小）
 RUN npm remove @shopify/cli @shopify/plugin-cloudflare 2>/dev/null || true
