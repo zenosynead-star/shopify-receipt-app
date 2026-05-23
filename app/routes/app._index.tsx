@@ -150,6 +150,7 @@ export default function Index() {
   const [snippetApplied, setSnippetApplied] = useState<boolean>(
     data.settings.emailSnippetApplied,
   );
+  const [previewVersion, setPreviewVersion] = useState(0);
 
   const isSaving =
     fetcher.state === "submitting" || fetcher.state === "loading";
@@ -157,6 +158,7 @@ export default function Index() {
   useEffect(() => {
     if (fetcher.data?.ok) {
       appBridge.toast.show("保存しました");
+      setPreviewVersion((v) => v + 1); // 保存後にプレビュー iframe を再ロード
     }
   }, [fetcher.data, appBridge]);
 
@@ -338,6 +340,27 @@ export default function Index() {
 
           <Layout.Section variant="oneThird">
             <BlockStack gap="400">
+              <Card>
+                <BlockStack gap="300">
+                  <Text as="h2" variant="headingMd">
+                    プレビュー（リアルタイム）
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    サンプル注文 + 現在の設定で生成。保存すると最新内容に更新。
+                  </Text>
+                  <iframe
+                    src={`/app/preview-pdf?_t=${previewVersion}`}
+                    style={{
+                      width: "100%",
+                      height: 500,
+                      border: "1px solid #e1e3e5",
+                      borderRadius: 4,
+                    }}
+                    title="領収書プレビュー"
+                  />
+                </BlockStack>
+              </Card>
+
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
