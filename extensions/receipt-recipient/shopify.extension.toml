@@ -1,0 +1,16 @@
+api_version = "2025-01"
+
+[[extensions]]
+name = "receipt-recipient"
+handle = "receipt-recipient"
+type = "ui_extension"
+
+  [[extensions.targeting]]
+  module = "./src/Checkout.tsx"
+  # 配送先住所セクションの直下 (電話番号フィールドの下) に表示
+  target = "purchase.checkout.delivery-address.render-after"
+
+  [extensions.capabilities]
+  network_access = false
+  block_progress = false
+  api_access = false

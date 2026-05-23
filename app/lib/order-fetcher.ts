@@ -24,6 +24,7 @@ const ORDER_FIELDS = `#graphql
   name
   processedAt
   customer { displayName }
+  customAttributes { key value }
   currentSubtotalPriceSet { shopMoney { amount } }
   currentTotalPriceSet { shopMoney { amount } }
   currentTotalTaxSet { shopMoney { amount } }
@@ -75,11 +76,17 @@ function normalizeOrder(order: any): ReceiptOrder {
 
   const numericId = order.id.replace("gid://shopify/Order/", "");
 
+  // チェックアウト UI Extension で入力された領収書宛名があれば優先
+  const receiptRecipient = (order.customAttributes ?? [])
+    .find((a: any) => a.key === "receipt_recipient")
+    ?.value?.trim();
+
   return {
     orderName: order.name,
     orderId: numericId,
     processedAt: order.processedAt,
-    customerName: order.customer?.displayName ?? "ご注文者様",
+    customerName:
+      receiptRecipient || order.customer?.displayName || "ご注文者様",
     subtotalJpy: toJpyInt(order.currentSubtotalPriceSet.shopMoney.amount),
     taxByRate,
     totalJpy: toJpyInt(order.currentTotalPriceSet.shopMoney.amount),
