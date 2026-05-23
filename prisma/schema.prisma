@@ -48,6 +48,7 @@ model ShopSettings {
   taxRateDefault    Int      @default(10)   // 標準税率 (%)
   reducedTaxRate    Int      @default(8)    // 軽減税率 (%)
   notes             String   @default("")   // 但し書きデフォルト ("商品代として" 等)
+  emailSnippetApplied Boolean @default(false) // メールテンプレに Liquid スニペットを貼り付け済みか
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

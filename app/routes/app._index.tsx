@@ -16,6 +16,8 @@ import {
   Thumbnail,
   Divider,
   Link,
+  Checkbox,
+  List,
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -24,6 +26,8 @@ import { shopReceiptSecret } from "../lib/receipt-token";
 
 type LoaderData = {
   shop: string;
+  storeHandle: string;
+  notificationsUrl: string;
   appUrl: string;
   shopSecret: string;
   settings: {
@@ -36,6 +40,7 @@ type LoaderData = {
     stampImageBase64: string | null;
     receiptPrefix: string;
     notes: string;
+    emailSnippetApplied: boolean;
   };
 };
 
@@ -54,10 +59,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     stampImageBase64: null,
     receiptPrefix: "R-",
     notes: "商品代として",
+    emailSnippetApplied: false,
   };
+
+  const storeHandle = shop.replace(/\.myshopify\.com$/, "");
 
   return {
     shop,
+    storeHandle,
+    notificationsUrl: `https://admin.shopify.com/store/${storeHandle}/settings/notifications`,
     appUrl: process.env.SHOPIFY_APP_URL || "",
     shopSecret: shopReceiptSecret(shop),
     settings: {
@@ -70,6 +80,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       stampImageBase64: settings.stampImageBase64,
       receiptPrefix: settings.receiptPrefix,
       notes: settings.notes,
+      emailSnippetApplied: settings.emailSnippetApplied ?? false,
     },
   } satisfies LoaderData;
 };
@@ -81,6 +92,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const form = await request.formData();
   const get = (k: string) => (form.get(k) as string | null) ?? "";
   const stampImageBase64 = (form.get("stampImageBase64") as string) || null;
+  const emailSnippetApplied = form.get("emailSnippetApplied") === "true";
 
   await prisma.shopSettings.upsert({
     where: { shop },
@@ -95,6 +107,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       receiptPrefix: get("receiptPrefix") || "R-",
       notes: get("notes"),
       stampImageBase64,
+      emailSnippetApplied,
     },
     update: {
       companyName: get("companyName"),
@@ -106,6 +119,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       receiptPrefix: get("receiptPrefix") || "R-",
       notes: get("notes"),
       stampImageBase64,
+      emailSnippetApplied,
     },
   });
 
@@ -133,6 +147,9 @@ export default function Index() {
   const [stampImageBase64, setStamp] = useState<string | null>(
     data.settings.stampImageBase64,
   );
+  const [snippetApplied, setSnippetApplied] = useState<boolean>(
+    data.settings.emailSnippetApplied,
+  );
 
   const isSaving =
     fetcher.state === "submitting" || fetcher.state === "loading";
@@ -155,8 +172,12 @@ export default function Index() {
 
   const handleSave = () => {
     const fd = new FormData();
-    Object.entries(form).forEach(([k, v]) => fd.set(k, v ?? ""));
+    Object.entries(form).forEach(([k, v]) => {
+      if (typeof v === "boolean") return; // boolean は個別 set で扱う
+      fd.set(k, (v as string | null) ?? "");
+    });
     fd.set("stampImageBase64", stampImageBase64 ?? "");
+    fd.set("emailSnippetApplied", snippetApplied ? "true" : "false");
     fetcher.submit(fd, { method: "POST" });
   };
 
@@ -166,6 +187,16 @@ export default function Index() {
     <Page>
       <TitleBar title="領収書設定" />
       <BlockStack gap="500">
+        {!snippetApplied ? (
+          <Banner
+            tone="warning"
+            title="初期セットアップ: メール本文への貼り付けが未完了です"
+          >
+            <Text as="p" variant="bodyMd">
+              注文確認メールに領収書 DL リンクを表示するため、画面右側の Liquid スニペットを Shopify 管理画面の <b>設定 → 通知 → 注文確認</b> の HTML 本文に 1 度だけ貼り付ける必要があります。手順は右側カードに記載しています。
+            </Text>
+          </Banner>
+        ) : null}
         <Layout>
           <Layout.Section>
             <Card>
@@ -310,35 +341,60 @@ export default function Index() {
               <Card>
                 <BlockStack gap="300">
                   <Text as="h2" variant="headingMd">
-                    メールへの組み込み
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    下のスニペットを <b>Shopify 管理画面 → 設定 → 通知 → 注文確認</b> の本文末尾に貼り付けてください。
+                    メールへの組み込み（初回 1 度だけ）
                   </Text>
                   {!data.appUrl ? (
                     <Banner tone="warning">
-                      アプリ URL がまだ取得できていません。`shopify app dev` を起動するとここに URL が入ります。
+                      アプリ URL がまだ取得できていません。Render の SHOPIFY_APP_URL 環境変数が設定されているか確認してください。
                     </Banner>
                   ) : null}
+
+                  <Text as="p" variant="bodyMd">手順:</Text>
+                  <List type="number">
+                    <List.Item>下のスニペットを <b>「コピー」</b> ボタンで取得</List.Item>
+                    <List.Item><b>「Shopify 通知設定を開く」</b> ボタンで新しいタブを開く</List.Item>
+                    <List.Item>「<b>注文確認</b>」→ <b>「コードを編集」</b> をクリック</List.Item>
+                    <List.Item>HTML 本文の <code>{`</body>`}</code> 直前にペースト → <b>保存</b></List.Item>
+                    <List.Item>このページに戻り、下の <b>「貼り付け完了」</b> にチェック → <b>保存</b></List.Item>
+                  </List>
+
                   <TextField
                     label="Liquid スニペット"
                     value={snippet}
-                    multiline={8}
+                    multiline={6}
                     autoComplete="off"
                     onChange={() => {}}
                     readOnly
                     monospaced
                     selectTextOnFocus
                   />
-                  <Button
-                    onClick={() => {
-                      navigator.clipboard.writeText(snippet);
-                      appBridge.toast.show("スニペットをコピーしました");
-                    }}
-                  >
-                    クリップボードにコピー
-                  </Button>
+                  <InlineStack gap="200">
+                    <Button
+                      onClick={() => {
+                        navigator.clipboard.writeText(snippet);
+                        appBridge.toast.show("スニペットをコピーしました");
+                      }}
+                    >
+                      コピー
+                    </Button>
+                    <Button
+                      url={data.notificationsUrl}
+                      target="_blank"
+                      variant="primary"
+                    >
+                      Shopify 通知設定を開く
+                    </Button>
+                  </InlineStack>
+
                   <Divider />
+
+                  <Checkbox
+                    label="貼り付け完了"
+                    checked={snippetApplied}
+                    onChange={(v) => setSnippetApplied(v)}
+                    helpText="チェックを入れて「保存」ボタンを押すと、上部の警告が消えます"
+                  />
+
                   <Text as="p" variant="bodySm" tone="subdued">
                     URL は注文ごとに <code>{`{{ order.id }}`}</code> で動的に置換されます。
                     トークン <code>k</code> はショップ固有の固定値です。
