@@ -1,0 +1,7 @@
+name = "cart-receipt-recipient"
+type = "theme"
+
+[[extensions]]
+name = "Receipt Recipient (Cart)"
+handle = "cart-receipt-recipient"
+type = "theme"

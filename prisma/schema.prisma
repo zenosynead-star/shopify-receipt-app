@@ -52,3 +52,17 @@ model ShopSettings {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }
+
+// 領収書発行履歴。1 注文 1 宛名で確定し、不正な複数宛名発行を防止。
+model ReceiptIssue {
+  id           String   @id @default(cuid())
+  shop         String
+  orderId      String   // Order の数字 ID
+  recipient    String   // 確定した領収書宛名
+  issuedAt     DateTime @default(now())
+  reissueCount Int      @default(0) // 再ダウンロード回数 (初回 0、2回目以降 +1)
+  lastIssuedAt DateTime @updatedAt
+
+  @@unique([shop, orderId])
+  @@index([shop])
+}

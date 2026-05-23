@@ -111,10 +111,13 @@ export type ReceiptIssuer = {
 export function ReceiptDocument(props: {
   order: ReceiptOrder;
   issuer: ReceiptIssuer;
+  reissueCount?: number; // 1=初回発行, 2以上=再発行
 }) {
   registerFonts();
   const { order, issuer } = props;
-  const receiptNo = `${issuer.receiptPrefix}${order.orderName.replace("#", "")}`;
+  const reissueCount = props.reissueCount ?? 1;
+  const isReissue = reissueCount >= 2;
+  const receiptNo = `${issuer.receiptPrefix}${order.orderName.replace("#", "")}${isReissue ? `-R${reissueCount}` : ""}`;
   const noteText = issuer.notes || "商品代として";
 
   return (
@@ -126,6 +129,11 @@ export function ReceiptDocument(props: {
             <Text>No. {receiptNo}</Text>
             <Text>発行日: {formatJpDate(order.processedAt)}</Text>
             <Text>注文番号: {order.orderName}</Text>
+            {isReissue ? (
+              <Text style={{ color: "#c41e3a", fontWeight: "bold", marginTop: 4 }}>
+                ⚠ 再発行 (R{reissueCount})
+              </Text>
+            ) : null}
           </View>
         </View>
 

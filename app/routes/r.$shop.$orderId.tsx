@@ -9,8 +9,8 @@ import { verifyShopReceiptToken } from "../lib/receipt-token";
 // 顧客が直接アクセスする想定のため認証なし。トークンで照合。
 //
 // 動作モード:
-//   ?k={token}                      → 宛名確認ページ (HTML)
-//   ?k={token}&download=1&name=...  → 領収書 PDF を生成・返却
+//   ?k={token}             → 確認ページ (HTML、宛名は注文時確定で readonly)
+//   ?k={token}&download=1  → PDF を生成・返却 (再ダウンロード回数 +1)
 
 function escapeHtml(s: string): string {
   return s
@@ -32,13 +32,31 @@ code{background:#f6f6f7;padding:2px 6px;border-radius:3px;font-size:13px;}
 <body><div class="box"><div class="icon">⚠️</div><h1>${title}</h1><p>${bodyHtml}</p></div></body></html>`;
 }
 
-function confirmPage(
-  orderName: string,
-  defaultName: string,
-  companyName: string,
-  totalJpy: number,
-): string {
-  const yen = `¥${totalJpy.toLocaleString("ja-JP")}`;
+function confirmPage(args: {
+  orderName: string;
+  recipient: string;
+  companyName: string;
+  totalJpy: number;
+  reissueCount: number;
+  issuedAt: Date;
+}): string {
+  const yen = `¥${args.totalJpy.toLocaleString("ja-JP")}`;
+  const issuedAtStr = args.issuedAt.toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const isReissue = args.reissueCount >= 1;
+  const buttonLabel = isReissue
+    ? `再ダウンロード（再発行 R${args.reissueCount + 1}）`
+    : "PDF をダウンロード";
+  const reissueWarning = isReissue
+    ? `<div style="background:#fff4e5;border-left:4px solid #ff9800;padding:12px 14px;margin:16px 0;border-radius:4px;font-size:13px;color:#7a4a00;line-height:1.6;">
+    <b>⚠️ 再発行になります</b><br>
+    この注文は <b>${issuedAtStr}</b> に初回発行済みです (これまで ${args.reissueCount} 回ダウンロード)。<br>
+    再発行する PDF には「<b>再発行 R${args.reissueCount + 1}</b>」と明記されます。経費精算の二重計上にご注意ください。
+  </div>`
+    : "";
   return `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>領収書ダウンロード</title>
 <style>
 *{box-sizing:border-box;}
@@ -50,35 +68,33 @@ h1{font-size:22px;margin:0 0 8px;}
 .summary .row{display:flex;justify-content:space-between;padding:3px 0;}
 .summary .label{color:#6d7175;}
 label{display:block;margin:24px 0 6px;font-size:13px;font-weight:600;}
-input[type=text]{width:100%;padding:12px 14px;border:1px solid #c9cccf;border-radius:6px;font-size:16px;font-family:inherit;}
-input[type=text]:focus{outline:none;border-color:#202223;box-shadow:0 0 0 2px rgba(0,0,0,0.05);}
+input[type=text]{width:100%;padding:12px 14px;border:1px solid #c9cccf;border-radius:6px;font-size:16px;font-family:inherit;background:#f6f6f7;color:#444;}
 .hint{font-size:12px;color:#6d7175;margin:6px 0 0;}
 button{width:100%;background:#202223;color:white;border:none;padding:14px;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;font-family:inherit;}
 button:hover{background:#000;}
-button:active{transform:scale(0.99);}
-.icon{font-size:32px;margin-bottom:8px;}
 </style></head>
 <body>
 <div class="box">
-  <div class="brand">${escapeHtml(companyName)}</div>
+  <div class="brand">${escapeHtml(args.companyName)}</div>
   <h1>📄 領収書ダウンロード</h1>
-  <p style="margin:0;font-size:14px;color:#6d7175;">下記内容で領収書 (PDF) を発行します。宛名は変更できます。</p>
+  <p style="margin:0;font-size:14px;color:#6d7175;">下記内容で領収書 (PDF) を発行します。</p>
 
   <div class="summary">
-    <div class="row"><span class="label">注文番号</span><span><b>${escapeHtml(orderName)}</b></span></div>
+    <div class="row"><span class="label">注文番号</span><span><b>${escapeHtml(args.orderName)}</b></span></div>
     <div class="row"><span class="label">合計金額</span><span><b>${yen}</b></span></div>
   </div>
 
+  ${reissueWarning}
+
   <form method="GET" action="">
     <input type="hidden" name="download" value="1" />
-    <label for="name">領収書の宛名</label>
-    <input id="name" type="text" name="name" value="${escapeHtml(defaultName)}" placeholder="ご注文者名" autocomplete="organization" />
-    <p class="hint">会社名や任意の名前に変更可能。空欄なら「ご注文者様」と表示されます。</p>
-    <button type="submit">PDF をダウンロード</button>
+    <label for="name">領収書の宛名 <span style="color:#6d7175;font-weight:normal;">（注文時に確定済み）</span></label>
+    <input id="name" type="text" value="${escapeHtml(args.recipient)} 様" readonly />
+    <p class="hint">宛名は注文時に確定したものに固定されています（不正発行防止のため変更不可）。</p>
+    <button type="submit">${buttonLabel}</button>
   </form>
 </div>
 <script>
-// k トークンを自動で hidden に追加
 (function(){
   var u = new URL(location.href);
   var k = u.searchParams.get('k');
@@ -98,7 +114,6 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
   const orderId = params.orderId?.replace(/\.pdf$/, "");
   const token = url.searchParams.get("k") ?? "";
   const isDownload = url.searchParams.get("download") === "1";
-  const customName = url.searchParams.get("name")?.trim() || "";
 
   if (!shop || !orderId) {
     return new Response("Not found", { status: 404 });
@@ -126,7 +141,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     return new Response(
       errorPage(
         "ご注文が見つかりません",
-        `注文 ID <code>${orderId}</code> が確認できませんでした。<br/><br/>考えられる原因:<br/>・注文が <b>過去 60 日</b> より古い (Shopify の仕様で取得不可)<br/>・URL が正しくない / 改ざんされた<br/><br/>お手数ですがストア管理者にお問い合わせください。`,
+        `注文 ID <code>${orderId}</code> が確認できませんでした。<br/><br/>考えられる原因:<br/>・注文が <b>過去 60 日</b> より古い (Shopify の仕様で取得不可)<br/>・URL が正しくない / 改ざんされた`,
       ),
       {
         status: 404,
@@ -135,15 +150,34 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     );
   }
 
+  // 発行履歴を取得 or 作成 (1 注文 1 宛名で固定)
+  let issue = await prisma.receiptIssue.findUnique({
+    where: { shop_orderId: { shop, orderId } },
+  });
+  if (!issue) {
+    // 注文時にカートで入力された宛名 (customAttributes.receipt_recipient) を最優先
+    // → 注文メモ → 顧客名 (これは order-fetcher.ts で既に customerName に解決済み)
+    issue = await prisma.receiptIssue.create({
+      data: {
+        shop,
+        orderId,
+        recipient: order.customerName,
+        reissueCount: 0,
+      },
+    });
+  }
+
   // モード①: 確認ページ (デフォルト)
   if (!isDownload) {
     return new Response(
-      confirmPage(
-        order.orderName,
-        order.customerName,
-        settings.companyName || "領収書",
-        order.totalJpy,
-      ),
+      confirmPage({
+        orderName: order.orderName,
+        recipient: issue.recipient,
+        companyName: settings.companyName || "領収書",
+        totalJpy: order.totalJpy,
+        reissueCount: issue.reissueCount,
+        issuedAt: issue.issuedAt,
+      }),
       {
         status: 200,
         headers: {
@@ -154,11 +188,14 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     );
   }
 
-  // モード②: PDF ダウンロード
-  const finalOrder = customName
-    ? { ...order, customerName: customName }
-    : order;
+  // モード②: PDF ダウンロード — reissueCount を +1
+  const newCount = issue.reissueCount + 1;
+  await prisma.receiptIssue.update({
+    where: { id: issue.id },
+    data: { reissueCount: newCount },
+  });
 
+  const finalOrder = { ...order, customerName: issue.recipient };
   const buffer = await renderToBuffer(
     <ReceiptDocument
       order={finalOrder}
@@ -173,6 +210,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
         receiptPrefix: settings.receiptPrefix,
         notes: settings.notes,
       }}
+      reissueCount={newCount}
     />,
   );
 
@@ -180,7 +218,7 @@ export const loader = async ({ params, request }: LoaderFunctionArgs) => {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="receipt-${finalOrder.orderName.replace("#", "")}.pdf"`,
+      "Content-Disposition": `inline; filename="receipt-${finalOrder.orderName.replace("#", "")}${newCount >= 2 ? `-R${newCount}` : ""}.pdf"`,
       "Cache-Control": "private, max-age=0, no-store",
     },
   });
