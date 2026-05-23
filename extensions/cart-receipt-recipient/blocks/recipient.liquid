@@ -1,7 +1,7 @@
 {% schema %}
 {
-  "name": "領収書宛名入力",
-  "target": "section",
+  "name": "領収書宛名入力 (カート)",
+  "target": "body",
   "settings": [
     {
       "type": "text",
@@ -20,60 +20,67 @@
       "id": "hint",
       "label": "補足説明",
       "default": "記入された場合、領収書 PDF の宛名に反映されます (空欄なら注文者名)"
-    },
-    {
-      "type": "color",
-      "id": "background",
-      "label": "背景色",
-      "default": "#f6f6f7"
-    },
-    {
-      "type": "range",
-      "id": "padding_top",
-      "label": "上余白",
-      "min": 0,
-      "max": 40,
-      "step": 2,
-      "default": 16,
-      "unit": "px"
-    },
-    {
-      "type": "range",
-      "id": "padding_bottom",
-      "label": "下余白",
-      "min": 0,
-      "max": 40,
-      "step": 2,
-      "default": 16,
-      "unit": "px"
     }
   ]
 }
 {% endschema %}
 
-<div
-  class="receipt-recipient-block"
-  style="margin: {{ block.settings.padding_top }}px 0 {{ block.settings.padding_bottom }}px; padding: 14px 16px; background: {{ block.settings.background }}; border-radius: 6px;"
-  {{ block.shopify_attributes }}
->
-  <label
-    for="cart-receipt-recipient"
-    style="display:block;margin-bottom:6px;font-weight:600;font-size:14px;"
-  >
-    {{ block.settings.label }}
-  </label>
-  <input
-    type="text"
-    id="cart-receipt-recipient"
-    name="attributes[receipt_recipient]"
-    value="{{ cart.attributes.receipt_recipient | escape }}"
-    placeholder="{{ block.settings.placeholder }}"
-    form="cart"
-    style="width:100%;padding:8px 10px;border:1px solid #c9cccf;border-radius:4px;font-size:14px;box-sizing:border-box;font-family:inherit;"
-  >
-  {% if block.settings.hint != blank %}
-    <p style="font-size:12px;color:#6d7175;margin:6px 0 0;line-height:1.5;">
-      {{ block.settings.hint }}
-    </p>
-  {% endif %}
-</div>
+{%- comment -%}
+  App Embed Block: テーマ全体に挿入される。
+  JS でカートページのみに <input> を動的挿入する（form 内に配置することで cart attribute として送信される）。
+{%- endcomment -%}
+
+{% if template contains 'cart' %}
+<script>
+(function() {
+  var existingValue = {{ cart.attributes.receipt_recipient | json }};
+  function inject() {
+    var form = document.querySelector('form[action*="/cart"]') || document.querySelector('#cart');
+    if (!form) return false;
+    if (form.querySelector('#cart-receipt-recipient')) return true; // 既に挿入済み
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'margin:16px 0;padding:14px 16px;background:#f6f6f7;border-radius:6px;';
+
+    var label = document.createElement('label');
+    label.setAttribute('for', 'cart-receipt-recipient');
+    label.style.cssText = 'display:block;margin-bottom:6px;font-weight:600;font-size:14px;';
+    label.textContent = {{ block.settings.label | json }};
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'cart-receipt-recipient';
+    input.name = 'attributes[receipt_recipient]';
+    input.value = existingValue || '';
+    input.placeholder = {{ block.settings.placeholder | json }};
+    input.style.cssText = 'width:100%;padding:8px 10px;border:1px solid #c9cccf;border-radius:4px;font-size:14px;box-sizing:border-box;font-family:inherit;';
+
+    var hint = document.createElement('p');
+    hint.style.cssText = 'font-size:12px;color:#6d7175;margin:6px 0 0;line-height:1.5;';
+    hint.textContent = {{ block.settings.hint | json }};
+
+    wrap.appendChild(label);
+    wrap.appendChild(input);
+    wrap.appendChild(hint);
+
+    // チェックアウトボタンの直前に挿入
+    var checkoutBtn = form.querySelector('[name="checkout"], button[type="submit"]');
+    if (checkoutBtn && checkoutBtn.parentNode) {
+      checkoutBtn.parentNode.insertBefore(wrap, checkoutBtn);
+    } else {
+      form.appendChild(wrap);
+    }
+    return true;
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inject);
+  } else {
+    inject();
+  }
+  // SPA 的に DOM が変わる場合に備え、500ms 後にも一度試行
+  setTimeout(inject, 500);
+  setTimeout(inject, 1500);
+})();
+</script>
+{% endif %}
